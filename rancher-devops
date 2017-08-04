@@ -1,0 +1,63 @@
+#!/bin/bash
+
+DOCKER_RANCHER_SERVER_VERSION=v1.3.3
+DOCKER_RANCHER_SERVER_PORT_INTERNAL=8080
+DOCKER_RANCHER_SERVER_PORT_EXTERNAL=8080
+
+TERRAFORM_TOOL_ZIP_FILENAME=terraform_0.10.0_linux_amd64.zip
+TERRAFORM_TOOL_ZIP_URL=https://releases.hashicorp.com/terraform/\
+0.10.0/$TERRAFORM_TOOL_ZIP_FILENAME
+
+function docker-run-rancher-server()
+{
+	docker run -d -p \
+		$DOCKER_RANCHER_SERVER_PORT_INTERNAL:$DOCKER_RANCHER_SERVER_PORT_EXTERNAL \
+		rancher/server:$DOCKER_RANCHER_SERVER_VERSION
+}
+
+function terraform-install()
+{
+	if [[ ! $(which ./terraform) ]]; then
+		wget $TERRAFORM_TOOL_ZIP_URL
+		unzip $TERRAFORM_TOOL_ZIP_FILENAME
+		rm $TERRAFORM_TOOL_ZIP_FILENAME
+	fi
+}
+
+function terraform-init()
+{
+	local orquestration=$1
+	./terraform init
+}
+
+function terraform-plan-and-apply()
+{
+	local orquestration=$1
+	
+	case $orquestration in
+		cattle)
+			./terraform plan
+		;;
+		kubernetes)
+			./terraform plan
+		;;
+		*)
+			./terraform plan
+	esac
+	
+	./terraform apply
+}
+
+function main()
+{
+	local orquestration=$1
+	
+	docker-run-rancher-server
+	terraform-install
+	terraform-init $orquestration
+	terraform-plan-and-apply $orquestration
+	
+	exit 0
+}
+
+main $*
