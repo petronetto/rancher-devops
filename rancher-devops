@@ -34,18 +34,8 @@ function terraform-plan-and-apply()
 {
 	local orquestration=$1
 	
-	case $orquestration in
-		cattle)
-			./terraform plan
-		;;
-		kubernetes)
-			./terraform plan
-		;;
-		*)
-			./terraform plan
-	esac
-	
-	./terraform apply
+	./terraform plan -var "orquestration=$orquestration"
+	./terraform apply -var "orquestration=$orquestration"
 }
 
 function main()
