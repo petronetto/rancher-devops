@@ -1,12 +1,8 @@
-variable "orquestration" {
-  type = "string"
-  default = "cattle"
-}
 
 resource "rancher_environment" "dev" {  
 	name = "dev"  
 	description = "Dev environment"  
-	orchestration = "${var.orquestration}" 
+	orchestration = "cattle" 
 }
 
 resource "rancher_registration_token" "dev-token" {  
@@ -17,4 +13,8 @@ resource "rancher_registration_token" "dev-token" {
 
 output "rancher_agent_command" {
   value = "${rancher_registration_token.dev-token.command}"
+}
+
+output "rancher_environment_id" {
+  value = "${rancher_environment.dev.id}"
 }
