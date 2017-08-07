@@ -1,6 +1,6 @@
 
 resource "rancher_environment" "kubernetes" {  
-	name = "Kubernetes"  
+	name = "kubernetes"  
 	description = "Kubernetes environment"  
 	orchestration = "kubernetes" 
 }

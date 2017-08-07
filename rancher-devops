@@ -36,24 +36,16 @@ function rancher-client-is-downloaded()
 	echo "$?"
 }
 
+function rancher-environment-exists()
+{
+	local environment_exists=$(curl -s localhost:8080/v1/projects | jq -r \
+		".data[] | select(.name == \"$environment\") | {id: .id} | length")
+		
+	echo "$environment_exists"
+}
+
 function docker-run-rancher-client-agent()
 {
-	local orchestration=$1
-	local environment=$2
-	local environment_id=$(curl -s localhost:8080/v1/projects | jq -r \
-		".data[] | select(.name == \"$environment\") | .id" \
-	)
-	
-	if [[ $(terraform-show-rancher-project-id) != $environment_id ]]; then
-		terraform-plan-and-apply 'orch' $environment
-		$(terraform-show-rancher-agent-cmd)
-	fi
-	
-	if [[ $(rancher-client-is-downloaded) == "1" ]]; then
-		docker start $DOCKER_RANCHER_CLIENT_NAME
-		return
-	fi
-	
 	$(terraform-show-rancher-agent-cmd)
 }
 
@@ -114,25 +106,10 @@ function terraform-init()
 
 function terraform-plan-and-apply()
 {
-	local method_prov_agent=$1 # orch | env
+	local environment=$1
 	
-	case $method_prov_agent in
-		'orch')
-			local orchestration=$2
-	
-			$TERRAFORM_EXEC plan $orchestration
-			$TERRAFORM_EXEC apply $orchestration
-			;;
-		'env')
-			local environment=$2
-	
-			$TERRAFORM_EXEC plan $environment
-			$TERRAFORM_EXEC apply $environment
-			;;
-		*)
-			echo "Provisioner required ('orch' or 'env')"
-			exit -1
-	esac
+	$TERRAFORM_EXEC plan environments/$environment
+	$TERRAFORM_EXEC apply environments/$environment
 }
 
 function terraform-show-rancher-agent-cmd()
@@ -149,14 +126,13 @@ function terraform-show-rancher-project-id()
 
 function main()
 {
-	local orchestration=$1
-	local environment=$2
+	local environment=$1
 	
 	docker-run-rancher-server
 	terraform-install
 	terraform-init
-	terraform-plan-and-apply 'env' $orchestration
-	docker-run-rancher-client-agent $orchestration $environment
+	terraform-plan-and-apply $environment
+	docker-run-rancher-client-agent $environment
 }
 
 main $*
