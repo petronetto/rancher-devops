@@ -1,0 +1,138 @@
+#!/bin/bash
+
+DOCKER_RANCHER_SERVER_NAME=rancher-server
+DOCKER_RANCHER_SERVER_DATA_NAME=$DOCKER_RANCHER_SERVER_NAME-data
+DOCKER_RANCHER_SERVER_VERSION=v1.3.3
+DOCKER_RANCHER_SERVER_PORT_INTERNAL=8080
+DOCKER_RANCHER_SERVER_PORT_EXTERNAL=8080
+DOCKER_RANCHER_SERVER_API_URL="localhost:$DOCKER_RANCHER_SERVER_PORT_EXTERNAL/v1"
+
+DOCKER_RANCHER_CLIENT_NAME=rancher-agent
+
+TERRAFORM_TOOL_ZIP_FILENAME=terraform_0.10.0_linux_amd64.zip
+TERRAFORM_TOOL_ZIP_URL=https://releases.hashicorp.com/terraform/\
+0.10.0/$TERRAFORM_TOOL_ZIP_FILENAME
+
+TERRAFORM_EXEC_NAME=terraform
+TERRAFORM_EXEC=./$TERRAFORM_EXEC_NAME
+
+function rancher-server-is-upped()
+{
+	test "$(curl -s $DOCKER_RANCHER_SERVER_API_URL)" == ""
+	echo "$?"
+}
+
+function rancher-server-is-downloaded()
+{
+	RANCHER_SERVER_CONTAINER_ID=$(docker ps -a -q --filter="name=^/$DOCKER_RANCHER_SERVER_NAME$")
+	test "$RANCHER_SERVER_CONTAINER_ID" == ""
+	echo "$?"
+}
+
+function rancher-client-is-downloaded()
+{
+	RANCHER_CLIENT_CONTAINER_ID=$(docker ps -a -q --filter="name=^/$DOCKER_RANCHER_CLIENT_NAME$")
+	test "$RANCHER_CLIENT_CONTAINER_ID" == ""
+	echo "$?"
+}
+
+function rancher-environment-exists()
+{
+	local environment_exists=$(curl -s localhost:8080/v1/projects | jq -r \
+		".data[] | select(.name == \"$environment\") | {id: .id} | length")
+		
+	echo "$environment_exists"
+}
+
+function docker-run-rancher-client-agent()
+{
+	$(terraform-show-rancher-agent-cmd)
+}
+
+function docker-run-rancher-server()
+{
+	if  [[ $(rancher-server-is-upped) == "1" ]]; then
+		echo "Rancher Server already started!"
+		return
+	fi
+	
+	if [[ $(rancher-server-is-downloaded) == "0" ]]; then
+		docker create \
+			--name $DOCKER_RANCHER_SERVER_DATA_NAME \
+			rancher/server:$DOCKER_RANCHER_SERVER_VERSION \
+			true
+	
+		docker run \
+			--name $DOCKER_RANCHER_SERVER_NAME \
+			--restart=unless-stopped \
+			--volumes-from $DOCKER_RANCHER_SERVER_DATA_NAME \
+			-d \
+			-p $DOCKER_RANCHER_SERVER_PORT_INTERNAL:$DOCKER_RANCHER_SERVER_PORT_EXTERNAL \
+			rancher/server:$DOCKER_RANCHER_SERVER_VERSION
+	else
+		docker start $DOCKER_RANCHER_SERVER_NAME
+	fi
+	
+	echo -n "Starting Rancher Server"
+	while true; do
+		if [[ $(rancher-server-is-upped) == "1" ]]; then
+			break
+		fi
+		
+		sleep 1
+		echo -n "."
+	done
+	
+	echo -e "\nRancher Server started!"
+}
+
+function terraform-install()
+{
+	if [[ ! $(which "$TERRAFORM_EXEC") ]]; then
+		wget $TERRAFORM_TOOL_ZIP_URL
+		unzip $TERRAFORM_TOOL_ZIP_FILENAME
+		rm $TERRAFORM_TOOL_ZIP_FILENAME
+		
+		return
+	fi
+	
+	echo "Terraform executable already downloaded."
+}
+
+function terraform-init()
+{
+	$TERRAFORM_EXEC init
+}
+
+function terraform-plan-and-apply()
+{
+	local environment=$1
+	
+	$TERRAFORM_EXEC plan environments/$environment
+	$TERRAFORM_EXEC apply environments/$environment
+}
+
+function terraform-show-rancher-agent-cmd()
+{
+	local terraform_output=$($TERRAFORM_EXEC output rancher_agent_command)
+	echo "$terraform_output"
+}
+
+function terraform-show-rancher-project-id()
+{
+	local terraform_output=$($TERRAFORM_EXEC output rancher_environment_id)
+	echo "$terraform_output"
+}
+
+function main()
+{
+	local environment=$1
+	
+	docker-run-rancher-server
+	terraform-install
+	terraform-init
+	terraform-plan-and-apply $environment
+	docker-run-rancher-client-agent $environment
+}
+
+main $*
