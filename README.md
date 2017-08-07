@@ -1,5 +1,8 @@
 # rancher-devops
-A tool for devops with Rancher Server.
+<p align="center">
+	<img width="70%" src="https://cdn.rawgit.com/cristiancmello/art/master/rancher-devops-banner.png"/>
+</p>
+<p align="center">A tool for devops with Rancher Server.</p>
 
 ## Prerequisites
 * Ubuntu 16.04.02 LTS;
